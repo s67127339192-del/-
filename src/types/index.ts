@@ -1,251 +1,168 @@
-import { ExtractedShippingData } from '../services/ocr';
+// Smart Port & Vessel Booking Management System Type Definitions
 
-export type DocumentType = 'INVOICE' | 'PACKING_LIST' | 'BILL_OF_LADING' | 'COMBINED' | 'OTHER';
+export type BookingStatus = 'BOOKED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
-export type ContainerType = '20GP' | '40GP' | '40HC' | '20RF' | '40RF' | 'LCL';
+export type ContainerType = '20GP' | '40GP' | '40HC' | '20RF' | '40RF' | '45HC';
 
-export type Incoterm = 'FOB' | 'CIF' | 'CFR' | 'EXW' | 'DDP' | 'DAP';
-
-export type ShipmentStatus = 
-  | 'DRAFT' 
+export type VesselTrackingStatus = 
   | 'BOOKED' 
-  | 'CUSTOMS_CLEARED' 
-  | 'LOADED' 
-  | 'IN_TRANSIT' 
-  | 'ARRIVED_PORT' 
-  | 'DELIVERED' 
-  | 'CANCELLED';
+  | 'DEPARTED' 
+  | 'AT_SEA' 
+  | 'ARRIVING' 
+  | 'BERTHED' 
+  | 'COMPLETED';
 
-export interface LineItem {
-  id: string;
-  itemNo: number;
-  description: string;
-  hsCode?: string;
-  qty: number;
-  unit: string;
-  unitPrice: number;
-  totalAmount: number;
-  packageCount?: number;
-  netWeightKg?: number;
-  grossWeightKg?: number;
-  cbm?: number;
-}
+export type BerthCode = 'A1' | 'A2' | 'B1' | 'B2' | 'C1';
 
-export interface Shipment {
+export type BerthStatus = 'SCHEDULED' | 'OCCUPIED' | 'MAINTENANCE' | 'AVAILABLE';
+
+export type ContainerStatus = 'GATE_IN' | 'IN_YARD' | 'LOADED' | 'GATE_OUT' | 'CUSTOMS_HOLD';
+
+export type YardZone = 'A' | 'B' | 'C' | 'D';
+
+export interface VesselBooking {
   id: string;
-  invoiceNo: string;
-  blNo?: string;
-  bookingNo?: string;
-  date: string;
-  documentType: DocumentType;
-  shipperName: string;
-  shipperAddress?: string;
-  consigneeName: string;
-  consigneeAddress?: string;
-  notifyParty?: string;
-  pol: string; // Port of Loading e.g. "Laem Chabang (THLCH)"
-  pod: string; // Port of Discharge e.g. "Los Angeles (USLAX)"
+  bookingId: string;
+  shippingLine: string;
   vesselName: string;
   voyageNo: string;
-  containerNo: string;
+  pol: string; // Port of Loading
+  pod: string; // Port of Discharge
+  etd: string; // Estimated Time of Departure
+  eta: string; // Estimated Time of Arrival
   containerType: ContainerType;
-  sealNo: string;
-  items: LineItem[];
-  currency: 'USD' | 'THB' | 'EUR' | 'CNY';
-  totalAmount: number;
-  totalGrossWeightKg: number;
-  totalNetWeightKg: number;
-  totalCBM: number;
-  incoterm: Incoterm;
-  status: ShipmentStatus;
+  quantity: number;
+  cargoDescription: string;
+  shipperName: string;
+  consigneeName: string;
+  status: BookingStatus;
+  freightAmountUSD: number;
+  assignedBerth?: BerthCode;
   notes?: string;
-  sourceImageUrl?: string;
-  documentIds?: string[];
+  isDemo: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type OcrDocStatus = 'WAITING' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
-
-export interface ScannedDocumentItem {
-  id: string; // Unique document ID
-  documentId?: string; // Unique document ID alias
-  fileName: string;
-  fileSize: number; // in bytes
-  fileType: string; // image/png, application/pdf, etc.
-  file?: File; // Original File object
-  docType: DocumentType;
-  documentType?: DocumentType; // Alias
-  status: OcrDocStatus;
-  ocrStatus?: OcrDocStatus; // Alias
-  progress: number;
-  statusMessage?: string;
-  originalUrl: string; // dataUrl or objectUrl
-  thumbnailUrl?: string; // small thumbnail for light storage
-  totalPages?: number;
-  currentPage?: number;
-  ocrData?: ExtractedShippingData;
-  extractedFields?: ExtractedShippingData; // Alias
-  rawText?: string;
-  error?: string;
-  uploadedAt: string;
-}
-
-export type FieldSourceType = DocumentType | 'USER_MANUAL' | 'AGREED_BOTH' | 'NONE';
-
-export interface MergedFieldSource<T = any> {
-  value: T;
-  sourceDocId?: string;
-  sourceDocType?: FieldSourceType;
-  sourceDocName?: string;
-  sourcePage?: number;
-  confidence?: number;
-  userVerified?: boolean;
-  isUserEdited?: boolean;
-  hasConflict?: boolean;
-  conflictOptions?: {
-    docId: string;
-    docName: string;
-    docType: DocumentType;
-    value: T;
-    confidence?: number;
-  }[];
-}
-
-export interface UnifiedShipmentSummary {
-  invoiceNo: MergedFieldSource<string>;
-  invoiceDate: MergedFieldSource<string>;
-  shipperName: MergedFieldSource<string>;
-  consigneeName: MergedFieldSource<string>;
-  description: MergedFieldSource<string>;
-  quantity: MergedFieldSource<number>;
-  unit: MergedFieldSource<string>;
-  unitPrice: MergedFieldSource<number>;
-  currency: MergedFieldSource<'USD' | 'THB' | 'EUR' | 'CNY'>;
-  totalAmount: MergedFieldSource<number>;
-  packageCount: MergedFieldSource<number>;
-  totalNetWeightKg: MergedFieldSource<number>;
-  totalGrossWeightKg: MergedFieldSource<number>;
-  containerNo: MergedFieldSource<string>;
-  sealNo: MergedFieldSource<string>;
-  blNo: MergedFieldSource<string>;
-  pol: MergedFieldSource<string>;
-  pod: MergedFieldSource<string>;
-  vesselName: MergedFieldSource<string>;
-  voyageNo: MergedFieldSource<string>;
-  hasConflicts: boolean;
-  conflictCount: number;
-  allVerified: boolean;
-  lastUpdatedAt: string;
-}
-
-export type CrossCheckFieldStatus = 'MATCH' | 'MISMATCH' | 'MISSING_DATA' | 'REQUIRES_MANUAL_REVIEW';
-
-export interface CrossCheckFieldResult {
-  fieldName: string;
-  labelThai: string;
-  invoiceValue: string | number;
-  packingListValue: string | number;
-  status: CrossCheckFieldStatus;
-  notes?: string;
-}
-
-export interface CrossCheckResult {
-  invoiceDocId: string;
-  invoiceName: string;
-  packingListDocId: string;
-  packingListName: string;
-  overallStatus: 'PASSED' | 'WARNING' | 'FAILED';
-  matchCount: number;
-  mismatchCount: number;
-  missingCount: number;
-  fields: CrossCheckFieldResult[];
-  checkedAt: string;
-}
-
-export type ShippingLine = 'Maersk' | 'MSC' | 'ONE' | 'COSCO' | 'Evergreen' | 'CMA CGM' | 'Hapag-Lloyd';
-
-export interface RouteWaypoint {
+export interface Waypoint {
   name: string;
   lat: number;
   lng: number;
-  status: 'passed' | 'current' | 'upcoming';
-  timestamp?: string;
+  reached: boolean;
 }
 
-export interface Milestone {
+export interface VesselTracking {
   id: string;
-  title: string;
-  location: string;
-  timestamp: string;
-  status: 'completed' | 'in_progress' | 'pending';
-  note?: string;
-}
-
-export interface ContainerTracking {
-  id: string;
-  containerNo: string;
-  blNo: string;
-  bookingNo: string;
-  shippingLine: ShippingLine;
+  bookingId: string;
   vesselName: string;
-  voyage: string;
-  containerType: ContainerType;
+  shippingLine: string;
+  voyageNo: string;
   pol: string;
   pod: string;
   etd: string;
   eta: string;
-  currentStatus: 'GATE_IN' | 'CUSTOMS_CLEARED' | 'LOADED' | 'SAILING' | 'ARRIVED_PORT' | 'DISCHARGED' | 'DELIVERED';
-  progressPercent: number;
-  currentLocationName: string;
-  currentCoordinates: { lat: number; lng: number };
-  seaRoute: RouteWaypoint[];
+  currentStatus: VesselTrackingStatus;
+  lat: number;
+  lng: number;
   speedKnots: number;
-  weatherStatus: string;
-  temperatureCelsius?: number; // For Reefer containers
-  humidityPercent?: number;
-  isReefer: boolean;
-  milestones: Milestone[];
-  updatedAt: string;
+  headingDeg: number;
+  nauticalMilesTotal: number;
+  nauticalMilesCompleted: number;
+  etaCountdownHours: number;
+  currentLocationName: string;
+  waypoints: Waypoint[];
+  isDemo: boolean;
+  lastUpdated: string;
 }
 
-export interface LocalCharges {
-  thc: number; // Terminal Handling Charge THB
-  blFee: number; // Bill of Lading documentation fee THB
-  sealFee: number; // Container seal fee THB
-  customsPaperwork: number; // Customs clearance & paperless THB
-  portEntry: number; // Port gate entry THB
-  inlandTrucking: number; // Trucking to port THB
-  terminalSecurity: number; // Security / ISPS charge THB
-}
-
-export interface ExportCalculation {
+export interface BerthAssignment {
   id: string;
-  title: string;
-  customerName: string;
-  destinationPort: string;
-  incoterm: Incoterm;
+  berthCode: BerthCode;
+  berthName: string;
+  bookingId?: string;
+  vesselName: string;
+  shippingLine: string;
+  eta: string; // Start window (e.g. 2026-10-24 08:00)
+  etd: string; // End window (e.g. 2026-10-25 14:00)
+  cranes: number;
+  status: BerthStatus;
+  draftRequired: number; // in meters (e.g. 13.5m)
+  maxDraft: number; // in meters (e.g. 16.0m)
+  loaLengthMeters: number; // Length overall
+  hasConflict: boolean;
+  conflictWith?: string;
+  conflictDetails?: string;
+  isDemo: boolean;
+}
+
+export interface PortContainer {
+  id: string;
+  containerNo: string;
+  sizeType: ContainerType;
+  bookingId?: string;
+  vesselName?: string;
+  shippingLine?: string;
+  grossWeightKg: number;
+  tareWeightKg: number;
+  status: ContainerStatus;
+  yardZone: YardZone;
+  yardBay: number;  // 1 - 10
+  yardRow: number;  // 1 - 6
+  yardTier: number; // 1 - 4
+  gateInDate: string;
+  freeDaysRemaining: number;
+  demurrageDays: number;
+  isDemo: boolean;
+}
+
+export interface TariffConfig {
+  oceanFreight20GP: number; // USD
+  oceanFreight40HC: number; // USD
+  thcOriginTHB: number; // THB per container
+  thcDestUSD: number; // USD per container
+  wharfageRateTHB: number; // THB per MT
+  storagePerDayAfterFreeTHB: number; // THB per day
+  freeTimeDays: number; // Days allowed in yard without demurrage
+  docFeeTHB: number;
+  customsClearanceTHB: number;
+  bafUSD: number;
+  exchangeRateTHBPerUSD: number;
+}
+
+export interface PortCongestionMetrics {
+  congestionIndex: number; // 0 - 100
+  statusLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  waitingVesselsCount: number;
+  activeBerthsCount: number;
+  availableBerthsCount: number;
+  berthOccupancyPercent: number;
+  yardOccupancyPercent: number;
+  avgWaitHours: number;
+  estimatedTurnaroundHours: number;
+  peakHour: string;
+  recommendation: string;
+  methodologyNotes: string;
+}
+
+export interface ExportCalculationRecord {
+  id: string;
+  bookingId?: string;
+  calculationDate: string;
   containerType: ContainerType;
-  containerQuantity: number;
-  cargoValueTHB: number;
-  exchangeRateUSDTHB: number;
+  quantity: number;
+  cargoWeightTon: number;
+  yardStorageDays: number;
   oceanFreightUSD: number;
-  bunkerAdjustmentUSD: number; // BAF / Fuel Surcharge
-  localChargesTHB: LocalCharges;
-  marineInsuranceRatePercent: number;
-  dutyTariffPercent: number;
-  targetGrossMarginPercent: number;
-  
-  // Computed values
   oceanFreightTHB: number;
-  totalFreightAndLocalTHB: number;
-  insuranceTHB: number;
-  cifValueTHB: number;
-  tariffTHB: number;
-  totalCostTHB: number;
-  costPerContainerTHB: number;
-  recommendedSellingPriceTHB: number;
-  grossProfitTHB: number;
-  grossProfitPerContainerTHB: number;
-  createdAt: string;
+  thcOriginTHB: number;
+  thcDestUSD: number;
+  thcDestTHB: number;
+  wharfageTHB: number;
+  storageFeeTHB: number;
+  docFeeTHB: number;
+  customsClearanceTHB: number;
+  bafTHB: number;
+  totalTHB: number;
+  totalUSD: number;
+  isDemo: boolean;
 }

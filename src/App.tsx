@@ -1,48 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   initDB, 
-  getShipments, 
+  getBookings, 
+  getVesselTrackings, 
+  getBerths, 
   getContainers, 
+  getTariffs, 
   getCalculations 
 } from './services/db';
-import { Shipment, ContainerTracking, ExportCalculation } from './types';
+import { 
+  VesselBooking, 
+  VesselTracking, 
+  BerthAssignment, 
+  PortContainer, 
+  TariffConfig, 
+  ExportCalculationRecord, 
+  PortCongestionMetrics 
+} from './types';
+import { calculatePortCongestion } from './services/portCongestion';
 import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
-import { OcrScanner } from './components/OcrScanner';
-import { ContainerTrackingView } from './components/ContainerTrackingView';
-import { CostCalculator } from './components/CostCalculator';
+import { VesselBookingView } from './components/VesselBookingView';
+import { VesselTrackingView } from './components/VesselTrackingView';
+import { BerthManagementView } from './components/BerthManagementView';
+import { ContainerManagementView } from './components/ContainerManagementView';
+import { PortCongestionView } from './components/PortCongestionView';
+import { CostCalculatorView } from './components/CostCalculatorView';
 import { ReportsView } from './components/ReportsView';
-import { ShipmentModal } from './components/ShipmentModal';
-import { Ship, Anchor, ShieldCheck } from 'lucide-react';
+import { BackupModal } from './components/BackupModal';
+import { Ship, Anchor, Database, ShieldCheck } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  
-  // Data states from IndexedDB
-  const [shipments, setShipments] = useState<Shipment[]>([]);
-  const [containers, setContainers] = useState<ContainerTracking[]>([]);
-  const [calculations, setCalculations] = useState<ExportCalculation[]>([]);
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState<boolean>(false);
+  const [selectedVesselForTracking, setSelectedVesselForTracking] = useState<string | undefined>(undefined);
+
+  // IndexedDB State
+  const [bookings, setBookings] = useState<VesselBooking[]>([]);
+  const [trackings, setTrackings] = useState<VesselTracking[]>([]);
+  const [berths, setBerths] = useState<BerthAssignment[]>([]);
+  const [containers, setContainers] = useState<PortContainer[]>([]);
+  const [tariffs, setTariffs] = useState<TariffConfig | null>(null);
+  const [calculations, setCalculations] = useState<ExportCalculationRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Active detail modal
-  const [selectedShipment, setSelectedShipment] = useState<Shipment | null>(null);
-  const [selectedContainerNoForTracking, setSelectedContainerNoForTracking] = useState<string | undefined>(undefined);
-
-  // Load IndexedDB on mount
+  // Fetch all tables from IndexedDB
   const refreshAllData = async () => {
     try {
       await initDB();
-      const [sData, cData, kData] = await Promise.all([
-        getShipments(),
+      const [bData, tData, berthData, cData, tariffData, calcData] = await Promise.all([
+        getBookings(),
+        getVesselTrackings(),
+        getBerths(),
         getContainers(),
-        getCalculations()
+        getTariffs(),
+        getCalculations(),
       ]);
-      setShipments(sData);
+
+      setBookings(bData);
+      setTrackings(tData);
+      setBerths(berthData);
       setContainers(cData);
-      setCalculations(kData);
+      setTariffs(tariffData);
+      setCalculations(calcData);
     } catch (err) {
-      console.error('Failed to initialize or fetch IndexedDB:', err);
+      console.error('Failed to load IndexedDB data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -52,15 +75,16 @@ export default function App() {
     refreshAllData();
   }, []);
 
-  const handleOpenTrackingForContainer = (containerNo: string) => {
-    setSelectedContainerNoForTracking(containerNo);
-    setActiveTab('tracking');
-  };
+  // Compute Congestion Metrics based on actual database records
+  const congestion = useMemo(() => {
+    return calculatePortCongestion(bookings, trackings, berths, containers);
+  }, [bookings, trackings, berths, containers]);
 
-  const handleShipmentSaved = async (newShipment: Shipment) => {
-    await refreshAllData();
-    // Prompt to view
-    setSelectedShipment(newShipment);
+  // Navigate to Vessel Tracking for a specific ship
+  const handleNavigateToTracking = (vesselName: string) => {
+    setSelectedVesselForTracking(vesselName);
+    setActiveTab('tracking');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (isLoading) {
@@ -70,7 +94,7 @@ export default function App() {
           <Ship className="w-6 h-6" />
         </div>
         <div className="text-base font-bold text-white tracking-wide">
-          กำลังเตรียมฐานข้อมูล SeaExport AI...
+          กำลังเริ่มต้นระบบ SeaExport Smart Port...
         </div>
         <div className="text-xs text-slate-400 mt-1">
           IndexedDB Local Storage Initializing
@@ -82,80 +106,130 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       
-      {/* Strict 3-Zone Top Bar Navigation */}
+      {/* Smart Port Navigation Header */}
       <Header
         activeTab={activeTab}
         onSelectTab={(tabId) => {
           setActiveTab(tabId);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onOpenQuickScan={() => {
-          setActiveTab('ocr');
+        onOpenNewBooking={() => {
+          setActiveTab('bookings');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        onOpenBackupModal={() => setIsBackupModalOpen(true)}
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
       />
 
-      {/* Main Viewport Container */}
+      {/* Main Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         
+        {/* 1. Dashboard View */}
         {activeTab === 'dashboard' && (
           <DashboardView
-            shipments={shipments}
+            bookings={bookings}
+            trackings={trackings}
+            berths={berths}
+            containers={containers}
+            congestion={congestion}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectBooking={(b) => {
+              setActiveTab('bookings');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectTracking={handleNavigateToTracking}
+            onOpenNewBooking={() => {
+              setActiveTab('bookings');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+
+        {/* 2. Vessel Booking View */}
+        {activeTab === 'bookings' && (
+          <VesselBookingView
+            bookings={bookings}
+            onRefreshData={refreshAllData}
+            onNavigateTracking={handleNavigateToTracking}
+          />
+        )}
+
+        {/* 3. Vessel Tracking View */}
+        {activeTab === 'tracking' && (
+          <VesselTrackingView
+            trackings={trackings}
+            selectedVesselName={selectedVesselForTracking}
+            onRefreshData={refreshAllData}
+          />
+        )}
+
+        {/* 4. Berth Management View */}
+        {activeTab === 'berths' && (
+          <BerthManagementView
+            berths={berths}
+            bookings={bookings}
+            onRefreshData={refreshAllData}
+            onNavigateTracking={handleNavigateToTracking}
+          />
+        )}
+
+        {/* 5. Container Yard Management View */}
+        {activeTab === 'containers' && (
+          <ContainerManagementView
+            containers={containers}
+            bookings={bookings}
+            onRefreshData={refreshAllData}
+          />
+        )}
+
+        {/* 6. Port Congestion Analysis View */}
+        {activeTab === 'congestion' && (
+          <PortCongestionView
+            congestion={congestion}
+            berths={berths}
+            trackings={trackings}
             containers={containers}
             onNavigateTab={(tab) => {
               setActiveTab(tab);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            onSelectShipment={(shp) => setSelectedShipment(shp)}
-            onSelectContainer={(cntNo) => handleOpenTrackingForContainer(cntNo)}
           />
         )}
 
-        {activeTab === 'ocr' && (
-          <OcrScanner
-            onShipmentSaved={handleShipmentSaved}
-          />
-        )}
-
-        {activeTab === 'tracking' && (
-          <ContainerTrackingView
-            containers={containers}
-            selectedContainerNo={selectedContainerNoForTracking}
+        {/* 7. Cost & Tariff Calculator View */}
+        {activeTab === 'calculator' && (
+          <CostCalculatorView
+            bookings={bookings}
             onRefreshData={refreshAllData}
           />
         )}
 
-        {activeTab === 'calculator' && (
-          <CostCalculator
-            savedCalculations={calculations}
-            onCalculationSaved={refreshAllData}
-          />
-        )}
-
+        {/* 8. Reports & CSV Export View */}
         {activeTab === 'reports' && (
           <ReportsView
-            shipments={shipments}
+            bookings={bookings}
+            berths={berths}
+            trackings={trackings}
             containers={containers}
             calculations={calculations}
-            onDataResetOrImported={refreshAllData}
+            congestion={congestion}
           />
         )}
 
       </main>
 
-      {/* Shipment Details & Edit Modal */}
-      {selectedShipment && (
-        <ShipmentModal
-          shipment={selectedShipment}
-          onClose={() => setSelectedShipment(null)}
-          onShipmentUpdated={refreshAllData}
-          onNavigateTracking={handleOpenTrackingForContainer}
-        />
-      )}
+      {/* JSON Backup & Restore Modal */}
+      <BackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        onDataRestored={refreshAllData}
+      />
 
-      {/* Clean Domain Footer (No AI Slop / No fake telemetry) */}
+      {/* Clean Domain Footer */}
       <footer className="mt-auto bg-slate-900 border-t border-slate-800 text-slate-400 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
           
@@ -163,17 +237,20 @@ export default function App() {
             <Anchor className="w-4 h-4 text-sky-400" />
             <span className="font-semibold text-white">SeaExport AI</span>
             <span>·</span>
-            <span>ระบบบริหารจัดการการส่งออกทางทะเลและ OCR สากล</span>
+            <span>ระบบบริหารจัดการการจองเรือและการดำเนินงานท่าเรืออัจฉริยะ</span>
           </div>
 
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>ฐานข้อมูล IndexedDB ในตัวเครื่อง (100% Client-Side)</span>
+          <div className="flex items-center gap-3 text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5 text-sky-400" />
+              <span>ฐานข้อมูล IndexedDB ในตัวเครื่อง (100% Client-Side)</span>
+            </span>
             <span>·</span>
-            <span>พร้อมใช้งานบน GitHub Pages</span>
+            <span>พร้อมใช้งานบน GitHub Pages & Safari iPad</span>
           </div>
 
-          <div className="text-slate-500">
-            © 2026 SeaExport AI Logistics Suite
+          <div className="text-slate-500 font-mono">
+            © 2026 SeaExport AI Smart Port Management System
           </div>
 
         </div>
