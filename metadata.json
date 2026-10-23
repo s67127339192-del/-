@@ -1,0 +1,6 @@
+{
+  "name": "SeaExport AI - ระบบบริหารการส่งออกทางทะเลและ OCR",
+  "description": "ระบบบริหารจัดการการส่งออกทางทะเลภาษาไทย สแกน Invoice/Packing List ด้วย OCR ติดตามตู้คอนเทนเนอร์ และคำนวณต้นทุนค่าระวางเรือ พร้อมระบบรายงาน CSV และ IndexedDB",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
